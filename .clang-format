@@ -1,0 +1,90 @@
+# https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+---
+Language: Cpp
+BasedOnStyle: LLVM
+AccessModifierOffset: -4
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignOperands: false
+AlignTrailingComments: true
+AllowShortBlocksOnASingleLine: Always
+# need newer clangd:
+# AllowShortCaseExpressionOnASingleLine: true
+# AllowShortCaseLabelsOnASingleLine: true
+#AllowShortCompoundRequirementOnASingleLine: true
+AllowShortEnumsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLambdasOnASingleLine: All
+AllowShortLoopsOnASingleLine: true
+AlwaysBreakTemplateDeclarations: Yes
+LambdaBodyIndentation: OuterScope
+BreakBeforeBraces: Custom
+BraceWrapping: 
+  AfterCaseLabel: true
+  AfterClass: true
+  AfterControlStatement: false
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterStruct: true
+  AfterUnion: true
+  AfterExternBlock: false
+  BeforeCatch: true
+  BeforeElse: true
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+BreakConstructorInitializers: AfterColon
+BreakConstructorInitializersBeforeComma: false
+ColumnLimit: 0
+ConstructorInitializerAllOnOneLineOrOnePerLine: false
+IncludeCategories:
+  - Regex: '<[[:alnum:]_*/]+>'
+    Priority: 1
+  - Regex: '^<.*'
+    Priority: 2
+  - Regex: '"wx/wx.*'
+    Priority: 3
+  - Regex: '"wx/'
+    Priority: 4
+  - Regex: '^".*'
+    Priority: 5
+  - Regex: '.*'
+    Priority: 6
+IncludeIsMainRegex: '([-_](test|unittest))?$'
+# IncludeIsMainRegex: "^$"
+IndentCaseBlocks: true
+IndentWidth: 4
+InsertNewlineAtEOF: true
+MacroBlockBegin: '.*_BEGIN|BEGIN_.*'
+MacroBlockEnd: '.*_END|END_.*'
+MaxEmptyLinesToKeep: 2
+NamespaceIndentation: All
+PointerAlignment: Left
+SpaceInEmptyParentheses: false
+SpacesInAngles: false
+SpacesInConditionalStatement: false
+SpacesInCStyleCastParentheses: false
+SpacesInParentheses: false
+TabWidth: 4
+# ...
+
+# AlignEscapedNewlines: DontAlign
+# BreakBeforeBinaryOperators: NonAssignment
+# BreakBeforeTernaryOperators: true
+# IndentPPDirectives: AfterHash
+# KeepEmptyLinesAtTheStartOfBlocks: false
+# DerivePointerAlignment: false
+# SpaceAfterCStyleCast: false
+# SpaceAfterTemplateKeyword: false
+# SpaceAroundPointerQualifiers: After
+# SpaceBeforeCaseColon: false
+# SpaceBeforeCtorInitializerColon: false
+# SpaceBeforeInheritanceColon: false
+# SpaceBeforeParens: Never
+# SpaceBeforeRangeBasedForLoopColon: false
+# Standard: Latest
+# UseTab: Never

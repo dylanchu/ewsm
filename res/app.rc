@@ -1,0 +1,35 @@
+IDI_APPICON ICON DISCARDABLE "res/app.ico"
+// ID_PNG_PENCIL RCDATA "res/pencil.png"
+
+#include "wx/msw/wx.rc"
+
+#include "winres.h"
+// version info
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION 1,0,0,1
+PRODUCTVERSION 1,0,0,1
+FILEFLAGSMASK 0x3fL
+FILEFLAGS 0x0L
+FILEOS 0x4L
+FILETYPE 0x1L
+FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"  // language & charset, 0409:US-en，04b0: UTF-8
+        BEGIN
+            // VALUE "CompanyName", "chudongyu\0"
+            VALUE "FileDescription", "This is a simple xx app\0"
+            VALUE "FileVersion", "1.0.0.1\0"
+            VALUE "InternalName", "app\0"
+            VALUE "LegalCopyright", "Copyright @ 2025 chudongyu\0"
+            VALUE "OriginalFilename", "app.exe\0"
+            VALUE "ProductName", "App\0"
+            VALUE "ProductVersion", "1.0.0.1\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
