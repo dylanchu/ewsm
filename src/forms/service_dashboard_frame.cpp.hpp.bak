@@ -1,0 +1,58 @@
+#include <wx/wx.h>
+#include <wx/splitter.h>
+#include <wx/gauge.h>
+#include <wx/stattext.h>
+#include <wx/listctrl.h>
+#include <wx/timer.h>
+#include <wx/gbsizer.h>
+#include <wx/artprov.h>
+#include <vector>
+#include <algorithm>
+
+class ServiceDashboardFrame : public wxFrame {
+public:
+    ServiceDashboardFrame(wxWindow* parent);
+
+    ~ServiceDashboardFrame() override;
+
+private:
+    wxListCtrl* m_serviceList;
+    wxGauge* m_runningGauge;
+    wxGauge* m_stoppedGauge;
+    wxGauge* m_otherGauge;
+    wxGauge* m_cpuGauge;
+    wxGauge* m_memGauge;
+    wxGauge* m_diskGauge;
+    wxGauge* m_netGauge;
+    wxTextCtrl* m_detailText;
+    wxTimer* m_timer;
+    
+    struct ServiceInfo {
+        wxString name;
+        DWORD status;
+        double cpuUsage;
+        double memUsage;
+        double diskUsage;
+        double netUsage;
+    };
+    
+    std::vector<ServiceInfo> m_services;
+    
+    void InitializeServiceList();
+
+    void AddService(const wxString& serviceName);
+
+    void UpdateServiceStatus(long index, const ServiceInfo& service) const;
+
+    void UpdateDashboard();
+
+    static wxString ServiceStatusToString(DWORD status);
+
+    void OnTimer(wxTimerEvent& event);
+
+    void OnAddService(wxCommandEvent& event);
+
+    void OnRemoveService(wxCommandEvent& event);
+
+    void OnServiceSelected(wxListEvent& event);
+};

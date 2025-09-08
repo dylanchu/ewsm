@@ -14,8 +14,7 @@ set(wxWidgets_ROOT_DIR "E:/Envs/wxWidgets-3.2.6/static")
 # file(GLOB_RECURSE ALL_SRCS "src/*.cpp" "src/*.h")
 file(GLOB_RECURSE ALL_SRCS ${SRC_HOME}/*.h* ${SRC_HOME}/*.c* ${SRC_HOME}/*.inl)
 file(GLOB_RECURSE ALL_RES_FILES ${RES_HOME}/*.ico ${RES_HOME}/*.rc ${RES_HOME}/*.manifest)
-file(GLOB_RECURSE ALL_NATVIS ${SRC_HOME}/*.natvis)
-source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${ALL_SRCS} ${ALL_RES_FILES} ${ALL_NATVIS})
+source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${ALL_SRCS} ${ALL_RES_FILES})
 
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
@@ -43,7 +42,7 @@ endif()
 # 可执行目标
 add_executable(${PROJECT_NAME} ${ALL_SRCS} ${MY_MANIFEST} ${MY_RC_FILE})
 # 忘了manifest中的requireAdministrator吧,用这个设置需要管理员权限:
-#target_link_options(${PROJECT_NAME} PRIVATE "/MANIFESTUAC:level='requireAdministrator'")  # cmake>=3.24.2
+target_link_options(${PROJECT_NAME} PRIVATE "/MANIFESTUAC:level='requireAdministrator'")  # cmake>=3.24.2
 
 # 宏定义
 add_compile_definitions(

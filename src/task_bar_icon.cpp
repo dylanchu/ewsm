@@ -1,8 +1,10 @@
 #include "task_bar_icon.hpp"
+#include <wx/thread.h>
 #include "app.hpp"
 #include "ecs/context/paths/paths_ctx.hpp"
 #include "ecs/system/paths/paths_system.hpp"
-#include "main_window.hpp"
+#include "ecs/system/service/service_system.hpp"
+#include "forms/service_manager_frame.hpp"
 #include "utils/capture_utils.hpp"
 #include "utils/debug_utils.hpp"
 #include "utils/keyboard_hooker.hpp"
@@ -62,18 +64,13 @@ void MyTaskBarIcon::on_quit(wxCommandEvent& event)
 
 void MyTaskBarIcon::on_open_main_window(wxCommandEvent& event)
 {
-    auto* main_window = wxGetApp().main_window;
-    main_window->Show(true);
-    main_window->Center();
-    main_window->Raise();
+    wxGetApp().open_main_window();
     // SendMessage(wxGetApp().GetTopWindow()->GetHWND(), WM_QUERYENDSESSION, 0, 0);
 }
 
 void MyTaskBarIcon::on_left_btn_dclick(wxTaskBarIconEvent& event)
 {
-    auto* main_window = wxGetApp().main_window;
-    main_window->Show(true);
-    main_window->Raise();
+    wxGetApp().open_main_window();
 }
 
 void ewsm::MyTaskBarIcon::on_close_ev(wxCloseEvent& event)
@@ -86,4 +83,29 @@ void ewsm::MyTaskBarIcon::on_close_ev(wxCloseEvent& event)
 void ewsm::MyTaskBarIcon::on_my_test(wxCommandEvent& event)
 {
     DEBUG_MSG("on_my_test");
+    if (0) {
+        auto my_service = ServiceComp{"zzzmyservice111", "abcdefg.exe", "zzzdisplayname"};
+
+        if (!ServiceSystem::Exists(my_service.name)) {
+            try {
+                if (!ServiceSystem::Install(my_service)) {
+                    // 处理安装失败
+                }
+                ServiceSystem::Start(my_service.name);
+            }
+            catch (const std::exception& e) {
+                wxLogError("Exception: %s", e.what());
+            }
+        }
+        else {
+            wxLogInfo("Service already exists, now test uninstall");
+            try {
+                ServiceSystem::Uninstall(my_service.name);
+            }
+            catch (const std::exception& e) {
+                wxLogError("Exception: %s", e.what());
+            }
+        }
+    }
+
 }

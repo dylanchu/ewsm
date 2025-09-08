@@ -4,7 +4,7 @@
 
 namespace ewsm {
 
-class MainWindow: public wxFrame {
+class DummyWindow: public wxFrame {
     using Super = wxFrame;
 public:
     enum wxOwnedID {
@@ -16,8 +16,8 @@ public:
     wxMenuBar *create_menu_bar();
 
 public:
-    MainWindow();
-    ~MainWindow();
+    DummyWindow();
+    ~DummyWindow();
     void on_hello(wxCommandEvent &event);
     void on_about(wxCommandEvent &event);
     void on_hotkey(wxKeyEvent &event);

@@ -1,5 +1,5 @@
 #include "win_utils.hpp"
-#include "wx/wxprec.h"
+#include "wx/wx.h"
 #include "wx/msw/registry.h"
 #include "wx/stdpaths.h"
 #include "app.hpp"

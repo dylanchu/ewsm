@@ -1,0 +1,365 @@
+#include <wx/artprov.h>
+#include "service_dashboard_frame.cpp.hpp"
+
+ServiceDashboardFrame::ServiceDashboardFrame(wxWindow* parent) :
+    wxFrame(parent, wxID_ANY, "Service Dashboard", wxDefaultPosition, wxSize(1000, 700))
+{
+
+    // 设置图标
+    SetIcon(wxArtProvider::GetIcon(wxART_INFORMATION, wxART_FRAME));
+
+    // 创建主面板
+    wxPanel* mainPanel = new wxPanel(this);
+    wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
+    mainPanel->SetSizer(mainSizer);
+
+    // 创建分割窗口
+    wxSplitterWindow* splitter = new wxSplitterWindow(mainPanel, wxID_ANY);
+    splitter->SetMinimumPaneSize(200);
+    mainSizer->Add(splitter, 1, wxEXPAND | wxALL, 5);
+
+    // 左侧面板：服务列表
+    wxPanel* leftPanel = new wxPanel(splitter);
+    wxBoxSizer* leftSizer = new wxBoxSizer(wxVERTICAL);
+    leftPanel->SetSizer(leftSizer);
+
+    // 服务列表标题
+    leftSizer->Add(new wxStaticText(leftPanel, wxID_ANY, "Monitored Services:"),
+                   0, wxALL, 5);
+
+    // 服务列表
+    m_serviceList = new wxListCtrl(leftPanel, wxID_ANY, wxDefaultPosition(), wxDefaultSize(),
+                                   wxLC_REPORT | wxLC_SINGLE_SEL | wxLC_NO_HEADER);
+    m_serviceList->InsertColumn(0, "Service");
+    leftSizer->Add(m_serviceList, 1, wxEXPAND | wxALL, 5);
+
+    // 添加/移除按钮
+    wxBoxSizer* buttonSizer = new wxBoxSizer(wxHORIZONTAL);
+    wxButton* addBtn = new wxButton(leftPanel, wxID_ANY, "Add Service");
+    wxButton* removeBtn = new wxButton(leftPanel, wxID_ANY, "Remove Service");
+    buttonSizer->Add(addBtn, 1, wxALL, 5);
+    buttonSizer->Add(removeBtn, 1, wxALL, 5);
+    leftSizer->Add(buttonSizer, 0, wxEXPAND);
+
+    // 绑定按钮事件
+    addBtn->Bind(wxEVT_BUTTON, &ServiceDashboardFrame::OnAddService, this);
+    removeBtn->Bind(wxEVT_BUTTON, &ServiceDashboardFrame::OnRemoveService, this);
+    m_serviceList->Bind(wxEVT_LIST_ITEM_SELECTED, &ServiceDashboardFrame::OnServiceSelected, this);
+
+    // 右侧面板：仪表盘
+    wxPanel* rightPanel = new wxPanel(splitter);
+    wxBoxSizer* rightSizer = new wxBoxSizer(wxVERTICAL);
+    rightPanel->SetSizer(rightSizer);
+
+    // 仪表盘标题
+    wxStaticText* dashboardTitle = new wxStaticText(rightPanel, wxID_ANY, "Service Dashboard");
+    dashboardTitle->SetFont(wxFont(14, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD));
+    rightSizer->Add(dashboardTitle, 0, wxALIGN_CENTER | wxTOP | wxBOTTOM, 10);
+
+    // 创建网格布局
+    wxGridBagSizer* gridSizer = new wxGridBagSizer(10, 10);
+    rightSizer->Add(gridSizer, 1, wxEXPAND | wxALL, 10);
+
+    // 状态概览面板
+    wxStaticBoxSizer* statusSizer = new wxStaticBoxSizer(wxVERTICAL, rightPanel, "Status Overview");
+    gridSizer->Add(statusSizer, wxGBPosition(0, 0), wxGBSpan(1, 2), wxEXPAND);
+
+    // 状态指示器
+    wxFlexGridSizer* statusGrid = new wxFlexGridSizer(2, 5, 5);
+    statusGrid->AddGrowableCol(1);
+    statusSizer->Add(statusGrid, 1, wxEXPAND | wxALL, 5);
+
+    // 运行中服务
+    statusGrid->Add(new wxStaticText(statusSizer->GetStaticBox(), wxID_ANY, "Running:"),
+                    0, wxALIGN_CENTER_VERTICAL);
+    m_runningGauge = new wxGauge(statusSizer->GetStaticBox(), wxID_ANY, 100);
+    statusGrid->Add(m_runningGauge, 1, wxEXPAND);
+
+    // 已停止服务
+    statusGrid->Add(new wxStaticText(statusSizer->GetStaticBox(), wxID_ANY, "Stopped:"),
+                    0, wxALIGN_CENTER_VERTICAL);
+    m_stoppedGauge = new wxGauge(statusSizer->GetStaticBox(), wxID_ANY, 100);
+    statusGrid->Add(m_stoppedGauge, 1, wxEXPAND);
+
+    // 其他状态服务
+    statusGrid->Add(new wxStaticText(statusSizer->GetStaticBox(), wxID_ANY, "Other:"),
+                    0, wxALIGN_CENTER_VERTICAL);
+    m_otherGauge = new wxGauge(statusSizer->GetStaticBox(), wxID_ANY, 100);
+    statusGrid->Add(m_otherGauge, 1, wxEXPAND);
+
+    // 性能监控面板
+    wxStaticBoxSizer* perfSizer = new wxStaticBoxSizer(wxVERTICAL, rightPanel, "Performance Monitor");
+    gridSizer->Add(perfSizer, wxGBPosition(1, 0), wxGBSpan(1, 1), wxEXPAND);
+
+    // CPU 使用率
+    wxBoxSizer* cpuSizer = new wxBoxSizer(wxHORIZONTAL);
+    cpuSizer->Add(new wxStaticText(perfSizer->GetStaticBox(), wxID_ANY, "CPU:"),
+                  0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
+    m_cpuGauge = new wxGauge(perfSizer->GetStaticBox(), wxID_ANY, 100);
+    cpuSizer->Add(m_cpuGauge, 1, wxEXPAND);
+    perfSizer->Add(cpuSizer, 0, wxEXPAND | wxALL, 5);
+
+    // 内存使用
+    wxBoxSizer* memSizer = new wxBoxSizer(wxHORIZONTAL);
+    memSizer->Add(new wxStaticText(perfSizer->GetStaticBox(), wxID_ANY, "Memory:"),
+                  0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
+    m_memGauge = new wxGauge(perfSizer->GetStaticBox(), wxID_ANY, 100);
+    memSizer->Add(m_memGauge, 1, wxEXPAND);
+    perfSizer->Add(memSizer, 0, wxEXPAND | wxALL, 5);
+
+    // 磁盘I/O
+    wxBoxSizer* diskSizer = new wxBoxSizer(wxHORIZONTAL);
+    diskSizer->Add(new wxStaticText(perfSizer->GetStaticBox(), wxID_ANY, "Disk I/O:"),
+                   0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
+    m_diskGauge = new wxGauge(perfSizer->GetStaticBox(), wxID_ANY, 100);
+    diskSizer->Add(m_diskGauge, 1, wxEXPAND);
+    perfSizer->Add(diskSizer, 0, wxEXPAND | wxALL, 5);
+
+    // 网络使用
+    wxBoxSizer* netSizer = new wxBoxSizer(wxHORIZONTAL);
+    netSizer->Add(new wxStaticText(perfSizer->GetStaticBox(), wxID_ANY, "Network:"),
+                  0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
+    m_netGauge = new wxGauge(perfSizer->GetStaticBox(), wxID_ANY, 100);
+    netSizer->Add(m_netGauge, 1, wxEXPAND);
+    perfSizer->Add(netSizer, 0, wxEXPAND | wxALL, 5);
+
+    // 服务详情面板
+    wxStaticBoxSizer* detailSizer = new wxStaticBoxSizer(wxVERTICAL, rightPanel, "Service Details");
+    gridSizer->Add(detailSizer, wxGBPosition(1, 1), wxGBSpan(1, 1), wxEXPAND);
+
+    // 服务详情文本
+    m_detailText = new wxTextCtrl(detailSizer->GetStaticBox(), wxID_ANY, "",
+                                  wxDefaultPosition, wxDefaultSize,
+                                  wxTE_MULTILINE | wxTE_READONLY | wxTE_RICH);
+    detailSizer->Add(m_detailText, 1, wxEXPAND | wxALL, 5);
+
+    // 设置分割比例
+    splitter->SplitVertically(leftPanel, rightPanel, 200);
+
+    // 创建定时器
+    m_timer = new wxTimer(this);
+    Bind(wxEVT_TIMER, &ServiceDashboardFrame::OnTimer, this);
+    m_timer->Start(1000); // 每秒更新一次
+
+    // 初始化服务列表
+    InitializeServiceList();
+}
+
+ServiceDashboardFrame::~ServiceDashboardFrame()
+{
+    if (m_timer->IsRunning()) {
+        m_timer->Stop();
+    }
+}
+
+void ServiceDashboardFrame::InitializeServiceList()
+{
+    // 添加一些默认服务
+    AddService("Winmgmt");
+    AddService("Spooler");
+    AddService("EventLog");
+    AddService("Dhcp");
+    AddService("Dnscache");
+
+    // 更新仪表盘
+    UpdateDashboard();
+}
+
+void ServiceDashboardFrame::AddService(const wxString& serviceName)
+{
+    // 检查是否已存在
+    for (const auto& service : m_services) {
+        if (service.name == serviceName) {
+            return;
+        }
+    }
+
+    // 添加新服务
+    ServiceInfo newService;
+    newService.name = serviceName;
+    newService.status = SERVICE_STOPPED;
+    newService.cpuUsage = 0.0;
+    newService.memUsage = 0.0;
+    newService.diskUsage = 0.0;
+    newService.netUsage = 0.0;
+
+    m_services.push_back(newService);
+
+    // 添加到列表控件
+    long index = m_serviceList->InsertItem(m_serviceList->GetItemCount(), serviceName);
+    UpdateServiceStatus(index, newService);
+}
+
+void ServiceDashboardFrame::UpdateServiceStatus(long index, const ServiceInfo& service) const
+{
+    // 设置状态颜色
+    wxColour color;
+    switch (service.status) {
+    case SERVICE_RUNNING:
+        color = *wxGREEN;
+        break;
+    case SERVICE_STOPPED:
+        color = *wxRED;
+        break;
+    case SERVICE_START_PENDING:
+    case SERVICE_STOP_PENDING:
+        color = wxColour(255, 165, 0); // 橙色
+        break;
+    case SERVICE_PAUSED:
+        color = wxColour(0, 0, 255); // 蓝色
+        break;
+    default:
+        color = *wxBLACK;
+    }
+
+    m_serviceList->SetItemTextColour(index, color);
+}
+
+void ServiceDashboardFrame::UpdateDashboard()
+{
+    // 计算状态分布
+    int runningCount = 0;
+    int stoppedCount = 0;
+    int otherCount = 0;
+
+    for (const auto& service : m_services) {
+        if (service.status == SERVICE_RUNNING) {
+            runningCount++;
+        }
+        else if (service.status == SERVICE_STOPPED) {
+            stoppedCount++;
+        }
+        else {
+            otherCount++;
+        }
+    }
+
+    int total = m_services.size();
+    if (total > 0) {
+        m_runningGauge->SetValue(100 * runningCount / total);
+        m_stoppedGauge->SetValue(100 * stoppedCount / total);
+        m_otherGauge->SetValue(100 * otherCount / total);
+    }
+
+    // 更新选中的服务的性能数据
+    long selected = m_serviceList->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+    if (selected != -1) {
+        wxString serviceName = m_serviceList->GetItemText(selected);
+        for (auto& service : m_services) {
+            if (service.name == serviceName) {
+                // 更新性能数据（模拟）
+                service.cpuUsage = std::min(100.0, service.cpuUsage + (rand() % 10 - 5));
+                service.memUsage = std::min(100.0, service.memUsage + (rand() % 10 - 5));
+                service.diskUsage = std::min(100.0, service.diskUsage + (rand() % 10 - 5));
+                service.netUsage = std::min(100.0, service.netUsage + (rand() % 10 - 5));
+
+                // 更新仪表盘
+                m_cpuGauge->SetValue(static_cast<int>(service.cpuUsage));
+                m_memGauge->SetValue(static_cast<int>(service.memUsage));
+                m_diskGauge->SetValue(static_cast<int>(service.diskUsage));
+                m_netGauge->SetValue(static_cast<int>(service.netUsage));
+
+                // 更新详情文本
+                wxString details;
+                details << "Service: " << service.name << "\n\n";
+                details << "Status: " << ServiceStatusToString(service.status) << "\n\n";
+                details << "Performance Metrics:\n";
+                details << "  CPU Usage: " << wxString::Format("%.1f%%", service.cpuUsage) << "\n";
+                details << "  Memory Usage: " << wxString::Format("%.1f%%", service.memUsage) << "\n";
+                details << "  Disk I/O: " << wxString::Format("%.1f%%", service.diskUsage) << "\n";
+                details << "  Network Usage: " << wxString::Format("%.1f%%", service.netUsage) << "\n";
+
+                m_detailText->SetValue(details);
+                break;
+            }
+        }
+    }
+
+    // 更新列表中的状态
+    for (long i = 0; i < m_serviceList->GetItemCount(); i++) {
+        wxString serviceName = m_serviceList->GetItemText(i);
+        for (const auto& service : m_services) {
+            if (service.name == serviceName) {
+                UpdateServiceStatus(i, service);
+                break;
+            }
+        }
+    }
+}
+
+wxString ServiceDashboardFrame::ServiceStatusToString(DWORD status)
+{
+    switch (status) {
+    case SERVICE_STOPPED:
+        return "Stopped";
+    case SERVICE_START_PENDING:
+        return "Starting";
+    case SERVICE_STOP_PENDING:
+        return "Stopping";
+    case SERVICE_RUNNING:
+        return "Running";
+    case SERVICE_CONTINUE_PENDING:
+        return "Resuming";
+    case SERVICE_PAUSE_PENDING:
+        return "Pausing";
+    case SERVICE_PAUSED:
+        return "Paused";
+    default:
+        return "Unknown";
+    }
+}
+
+void ServiceDashboardFrame::OnTimer(wxTimerEvent& event)
+{
+    // 模拟服务状态变化
+    for (auto& service : m_services) {
+        // 随机改变服务状态
+        if (rand() % 100 < 5) { // 5% 的概率改变状态
+            if (service.status == SERVICE_RUNNING) {
+                service.status = (rand() % 2 == 0) ? SERVICE_STOPPED : SERVICE_PAUSED;
+            }
+            else {
+                service.status = SERVICE_RUNNING;
+            }
+        }
+    }
+
+    // 更新仪表盘
+    UpdateDashboard();
+}
+
+void ServiceDashboardFrame::OnAddService(wxCommandEvent& event)
+{
+    wxTextEntryDialog dlg(this, "Enter service name:", "Add Service");
+    if (dlg.ShowModal() == wxID_OK) {
+        wxString serviceName = dlg.GetValue();
+        if (!serviceName.IsEmpty()) {
+            AddService(serviceName);
+        }
+    }
+}
+
+void ServiceDashboardFrame::OnRemoveService(wxCommandEvent& event)
+{
+    long selected = m_serviceList->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+    if (selected != -1) {
+        wxString serviceName = m_serviceList->GetItemText(selected);
+
+        // 从列表中移除
+        m_serviceList->DeleteItem(selected);
+
+        // 从服务列表中移除
+        auto it = std::remove_if(m_services.begin(), m_services.end(),
+                                 [&](const ServiceInfo& s) { return s.name == serviceName; });
+        m_services.erase(it, m_services.end());
+
+        // 更新仪表盘
+        UpdateDashboard();
+    }
+}
+
+void ServiceDashboardFrame::OnServiceSelected(wxListEvent& event)
+{
+    // 更新仪表盘以显示选中服务的详细信息
+    UpdateDashboard();
+}

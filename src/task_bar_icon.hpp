@@ -7,7 +7,7 @@
 namespace ewsm
 {
 
-    class MainWindow;
+    class DummyWindow;
 
     class MyTaskBarIcon : public wxTaskBarIcon
     {

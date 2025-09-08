@@ -1,6 +1,6 @@
 #pragma once
 #include <unordered_map>
-#include "wx/wxprec.h"
+#include "wx/wx.h"
 #include "debug_utils.hpp"
 
 namespace utils

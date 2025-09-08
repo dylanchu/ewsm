@@ -1,14 +1,13 @@
-#include "main_window.hpp"
+#include "dummy_window.hpp"
 #include "wx/fileconf.h"
-#include "app.hpp"
-#include "task_bar_icon.hpp"
+#include "src/app.hpp"
 
 
-BEGIN_EVENT_TABLE(ewsm::MainWindow, wxFrame)
-    EVT_HOTKEY(ID_hotkey_test, MainWindow::on_hotkey)
+BEGIN_EVENT_TABLE(ewsm::DummyWindow, wxFrame)
+    EVT_HOTKEY(ID_hotkey_test, DummyWindow::on_hotkey)
 END_EVENT_TABLE()
 
-ewsm::MainWindow::MainWindow() :
+ewsm::DummyWindow::DummyWindow() :
     wxFrame(nullptr, wxID_ANY, wxGetApp().GetAppName())
 {
     const auto menu_bar = create_menu_bar();
@@ -40,12 +39,12 @@ ewsm::MainWindow::MainWindow() :
     });
 }
 
-ewsm::MainWindow::~MainWindow()
+ewsm::DummyWindow::~DummyWindow()
 {
     Super::UnregisterHotKey(ID_hotkey_test);
 }
 
-void ewsm::MainWindow::on_about(wxCommandEvent& event)
+void ewsm::DummyWindow::on_about(wxCommandEvent& event)
 {
     wxMessageBox(
         wxGetApp().GetAppName().Capitalize() + " is a xx tool made with C++ and wxWidgets.",
@@ -53,12 +52,12 @@ void ewsm::MainWindow::on_about(wxCommandEvent& event)
         wxOK | wxICON_INFORMATION);
 }
 
-void ewsm::MainWindow::on_hello(wxCommandEvent& event)
+void ewsm::DummyWindow::on_hello(wxCommandEvent& event)
 {
     // wxMessageBox(wxT("Hello from ") + wxGetApp().GetAppName() + wxT("!"));
 }
 
-wxMenuBar* ewsm::MainWindow::create_menu_bar()
+wxMenuBar* ewsm::DummyWindow::create_menu_bar()
 {
     auto menu_file = new wxMenu();
     menu_file->Append(ID_Hello, "&Hello...\tCtrl-H", "Help string shown in status bar for this menu item");
@@ -72,7 +71,7 @@ wxMenuBar* ewsm::MainWindow::create_menu_bar()
     return menu_bar;
 }
 
-void ewsm::MainWindow::on_hotkey(wxKeyEvent& event)
+void ewsm::DummyWindow::on_hotkey(wxKeyEvent& event)
 {
     if (event.GetId() == ID_hotkey_test) {
     }

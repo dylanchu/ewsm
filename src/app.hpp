@@ -1,8 +1,8 @@
 #pragma once
 #include <set>
-#include "wx/wxprec.h"
+#include "wx/wx.h"
 #include "entt/entt.hpp"
-#include "main_window.hpp"
+#include "forms/dummy_window.hpp"
 
 class wxSingleInstanceChecker;
 
@@ -10,7 +10,7 @@ namespace ewsm {
 
     class PathsSystem;
     class SettingsSystem;
-    class MainWindow;
+    class DummyWindow;
     class MyTaskBarIcon;
 
     class Application final : public wxApp {
@@ -22,7 +22,9 @@ namespace ewsm {
         void register_test_hotkey() noexcept;
         void unregister_test_hotkey() noexcept;
 
-        MainWindow *main_window = nullptr;
+        void open_main_window() noexcept;
+
+        DummyWindow *dummy_window = nullptr;
         MyTaskBarIcon *task_bar_icon = nullptr;
         wxSingleInstanceChecker* ins_checker= nullptr;
 

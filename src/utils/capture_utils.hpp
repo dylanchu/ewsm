@@ -1,6 +1,6 @@
 #pragma once
 #include <vector>
-#include "wx/wxprec.h"
+#include "wx/wx.h"
 
 namespace utils
 {
