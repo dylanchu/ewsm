@@ -1,10 +1,10 @@
+// ReSharper disable CppTooWideScopeInitStatement
 #include "service_manager_frame.hpp"
 #include "service_detail_dialog.hpp"
 #include "service_install_wizard.hpp"
 #include <wx/artprov.h>
 #include <wx/treectrl.h>
 #include <windows.h>
-
 #include "ecs/context/service/service_operation_thread.hpp"
 
 using namespace ewsm;
@@ -146,13 +146,13 @@ void ServiceManagerFrame::RefreshServiceList()
 
 void ServiceManagerFrame::OnServiceSelected(wxListEvent& event)
 {
-    wxString serviceName = m_serviceList->GetItemText(event.GetIndex());
-    ShowServiceDetails(serviceName);
+    wxString service_name = m_serviceList->GetItemText(event.GetIndex());
+    ShowServiceDetails(service_name);
 }
 
-void ServiceManagerFrame::ShowServiceDetails(const wxString& serviceName)
+void ServiceManagerFrame::ShowServiceDetails(const wxString& service_name)
 {
-    ServiceDetailDialog dlg(this, serviceName);
+    ServiceDetailDialog dlg(this, service_name);
     dlg.ShowModal();
 }
 
@@ -171,18 +171,18 @@ void ServiceManagerFrame::OnUninstall(wxCommandEvent& event) {
         return;
     }
 
-    wxString serviceName = m_serviceList->GetItemText(selected);
+    wxString service_name = m_serviceList->GetItemText(selected);
 
     // 确认对话框
     wxMessageDialog dlg(this,
-        wxString::Format("Are you sure you want to uninstall the service '%s'?", serviceName),
+        wxString::Format("Are you sure you want to uninstall the service '%s'?", service_name),
         "Confirm Uninstall",
         wxYES_NO | wxICON_QUESTION);
     if (dlg.ShowModal() != wxID_YES) {
         return;
     }
 
-    if (ServiceSystem::Uninstall(serviceName)) {
+    if (ServiceSystem::Uninstall(service_name)) {
         RefreshServiceList();
     }
 }
@@ -191,8 +191,8 @@ void ServiceManagerFrame::OnStart(wxCommandEvent& event) {
     long selected = m_serviceList->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
     if (selected == -1) return;
 
-    wxString serviceName = m_serviceList->GetItemText(selected);
-    ServiceSystem::Start(serviceName);
+    wxString service_name = m_serviceList->GetItemText(selected);
+    ServiceSystem::Start(service_name);
     RefreshServiceList();
 }
 
@@ -243,9 +243,8 @@ void ServiceManagerFrame::InitializeImageList() {
 // 在状态列中使用动画图标
 void ServiceManagerFrame::OnTimer(wxTimerEvent& event) {
     for (int i = 0; i < m_serviceList->GetItemCount(); i++) {
-        wxString serviceName = m_serviceList->GetItemText(i);
-        DWORD status = ServiceSystem::GetServiceStatus(serviceName);
-
+        wxString service_name = m_serviceList->GetItemText(i);
+        const DWORD status = ServiceSystem::GetServiceStatus(service_name);
         if (status == SERVICE_START_PENDING || status == SERVICE_STOP_PENDING) {
             // 切换图标创建动画效果
             // int currentImage = m_serviceList->GetItemImage(i);
@@ -265,17 +264,17 @@ void ServiceManagerFrame::OnStop(wxCommandEvent& event) {
         return;
     }
 
-    wxString serviceName = m_serviceList->GetItemText(selected);
+    const wxString service_name = m_serviceList->GetItemText(selected);
 
     // 检查服务是否正在运行
-    if (!ServiceSystem::IsRunning(serviceName)) {
+    if (!ServiceSystem::IsRunning(service_name)) {
         wxMessageBox("Service is not running", "Information", wxOK | wxICON_INFORMATION);
         return;
     }
 
     // 确认对话框
     wxMessageDialog dlg(this,
-        wxString::Format("Are you sure you want to stop the service '%s'?", serviceName),
+        wxString::Format("Are you sure you want to stop the service '%s'?", service_name),
         "Confirm Stop",
         wxYES_NO | wxICON_QUESTION);
 
@@ -284,7 +283,7 @@ void ServiceManagerFrame::OnStop(wxCommandEvent& event) {
     }
 
     // 显示等待提示
-    SetStatusText(wxString::Format("Stopping service: %s...", serviceName));
+    SetStatusText(wxString::Format("Stopping service: %s...", service_name));
     m_serviceList->SetItemTextColour(selected, wxColour(255, 165, 0)); // 橙色表示操作中
 
     // 禁用按钮防止重复操作
@@ -294,7 +293,7 @@ void ServiceManagerFrame::OnStop(wxCommandEvent& event) {
 
     // 在后台线程中执行停止操作
     ServiceOperationThread* thread = new ServiceOperationThread(
-        this, serviceName, ServiceOperationThread::OP_STOP);
+        this, service_name, ServiceOperationThread::OP_STOP);
     thread->Run();
 }
 
@@ -306,14 +305,14 @@ void ServiceManagerFrame::OnRestart(wxCommandEvent& event) {
         return;
     }
 
-    wxString serviceName = m_serviceList->GetItemText(selected);
+    wxString service_name = m_serviceList->GetItemText(selected);
 
     // 检查服务是否正在运行
-    bool isRunning = ServiceSystem::IsRunning(serviceName);
+    bool isRunning = ServiceSystem::IsRunning(service_name);
 
     // 确认对话框
     wxMessageDialog dlg(this,
-        wxString::Format("Are you sure you want to restart the service '%s'?", serviceName),
+        wxString::Format("Are you sure you want to restart the service '%s'?", service_name),
         "Confirm Restart",
         wxYES_NO | wxICON_QUESTION);
     if (dlg.ShowModal() != wxID_YES) {
@@ -321,7 +320,7 @@ void ServiceManagerFrame::OnRestart(wxCommandEvent& event) {
     }
 
     // 显示等待提示
-    SetStatusText(wxString::Format("Restarting service: %s...", serviceName));
+    SetStatusText(wxString::Format("Restarting service: %s...", service_name));
     m_serviceList->SetItemTextColour(selected, wxColour(255, 165, 0)); // 橙色表示操作中
 
     // 禁用按钮防止重复操作
@@ -331,13 +330,13 @@ void ServiceManagerFrame::OnRestart(wxCommandEvent& event) {
 
     // 在后台线程中执行重启操作
     ServiceOperationThread* thread = new ServiceOperationThread(
-        this, serviceName, ServiceOperationThread::OP_RESTART);
+        this, service_name, ServiceOperationThread::OP_RESTART);
     thread->Run();
 }
 
 void ServiceManagerFrame::OnOperationComplete(wxThreadEvent& event) {
     // 获取操作结果
-    wxString message = event.GetString();
+    const wxString message = event.GetString();
     bool success = event.GetExtraLong() != 0;
 
     // 获取选中的服务
@@ -347,7 +346,7 @@ void ServiceManagerFrame::OnOperationComplete(wxThreadEvent& event) {
         return;
     }
 
-    wxString serviceName = m_serviceList->GetItemText(selected);
+    wxString service_name = m_serviceList->GetItemText(selected);
 
     // 更新状态文本
     SetStatusText(message);
@@ -355,7 +354,7 @@ void ServiceManagerFrame::OnOperationComplete(wxThreadEvent& event) {
     // 根据操作结果更新UI
     if (success) {
         // 刷新服务状态
-        DWORD status = ServiceSystem::GetServiceStatus(serviceName);
+        const DWORD status = ServiceSystem::GetServiceStatus(service_name);
 
         // 更新列表项颜色
         if (status == SERVICE_RUNNING) {
@@ -371,7 +370,7 @@ void ServiceManagerFrame::OnOperationComplete(wxThreadEvent& event) {
         m_serviceList->SetItem(selected, 1, statusText);
     } else {
         // 操作失败，恢复原状态
-        DWORD status = ServiceSystem::GetServiceStatus(serviceName);
+        const DWORD status = ServiceSystem::GetServiceStatus(service_name);
         if (status == SERVICE_RUNNING) {
             m_serviceList->SetItemTextColour(selected, *wxGREEN);
         } else {
