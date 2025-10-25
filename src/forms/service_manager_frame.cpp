@@ -1,34 +1,125 @@
 // ReSharper disable CppTooWideScopeInitStatement
+// ReSharper disable CppMemberFunctionMayBeConst
 #include "service_manager_frame.hpp"
-#include "service_detail_dialog.hpp"
-#include "service_install_wizard.hpp"
+#include <windows.h>
 #include <wx/artprov.h>
 #include <wx/treectrl.h>
-#include <windows.h>
 #include "ecs/context/service/service_operation_thread.hpp"
+#include "ecs/system/service/service_system.hpp"
+#include "service_detail_dialog.hpp"
+#include "service_install_wizard.hpp"
+#include "utils/timer_manager.hpp"
 
 using namespace ewsm;
 inline auto ServiceStatusToString = ServiceSystem::ServiceStatusToString;
 inline auto StartTypeToString = ServiceSystem::StartTypeToString;
 
 
+ServiceListModel::ServiceListModel() = default;
+
+void ServiceListModel::add_service(const ServiceComp& service)
+{
+    wxVector<wxVariant> data;
+    data.push_back(wxVariant(service.name));
+    data.push_back(wxVariant(ServiceStatusToString(service.status)));
+    data.push_back(wxVariant("-"/*StartTypeToString(service.start_type).first*/));
+    data.push_back(wxVariant(service.description));
+    AppendItem(data);
+}
+
+unsigned int ServiceListModel::find_next_row_with_prefix(wxString prefix, const unsigned cur_idx, const bool ignore_case, const bool loop) const
+{
+    const auto cnt = GetItemCount();
+    if (ignore_case) {
+        prefix.LowerCase();
+    }
+    auto find_func = [this, &prefix, ignore_case](const unsigned begin, const unsigned end) -> int {
+        wxString name;
+        for (auto i = begin; i < end; ++i) {
+            wxVariant x;
+            GetValueByRow(x, i, 0);
+            if (x.Convert(&name)) {
+                if (ignore_case) {
+                    name.LowerCase();
+                }
+                if (name.StartsWith(prefix)) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    };
+    if (const auto ret = find_func(cur_idx + 1, cnt); ret >= 0) {
+        return ret;
+    }
+    if (loop) {
+        if (const auto ret = find_func(0, cur_idx); ret >= 0) {
+            return ret;
+        }
+    }
+    return cur_idx;
+}
+
+ServiceListViewCtrl::ServiceListViewCtrl(wxWindow* parent, wxWindowID id, const wxPoint& pos, const wxSize& size, long style)
+    : wxDataViewListCtrl(parent, id, pos, size, style)
+{
+    Bind(wxEVT_DATAVIEW_ITEM_ACTIVATED, &ServiceListViewCtrl::on_service_selected, this);
+}
+
+void ServiceListViewCtrl::focus_next_item_by_prefix(const wxString& prefix)
+{
+    if (const auto* model = static_cast<ServiceListModel*>(GetStore())) {
+        const auto next_row = model->find_next_row_with_prefix(prefix, GetSelectedRow(), true, true);
+        SelectRow(next_row);
+        EnsureVisible(GetItemByRow(next_row));
+    }
+}
+
+void ServiceListViewCtrl::on_service_selected(wxDataViewEvent& event)
+{
+    if (const auto frame = static_cast<ServiceManagerFrame*>(GetParent()->GetParent())) {
+        frame->ShowServiceDetails(get_selected_service_name());
+    }
+}
+
+wxString ServiceListViewCtrl::get_selected_service_name() const
+{
+    return GetTextValue(GetSelectedRow(), 0);
+}
+
+//======================================================================================================
+
 ServiceManagerFrame::ServiceManagerFrame() :
     wxFrame(nullptr, wxID_ANY, "Service Manager")
 {
     // 创建主面板
-    wxPanel* panel = new wxPanel(this);
+    auto* panel = new wxPanel(this);
 
-    // 创建服务列表
-    m_serviceList = new wxListCtrl(panel, wxID_ANY,
-                               wxDefaultPosition, wxDefaultSize,
-                               wxLC_REPORT | wxLC_SINGLE_SEL); // 多选 wxLC_MULTIPLE_SEL
-    m_serviceList->InsertColumn(0, "Service");
-    m_serviceList->InsertColumn(1, "Status");
-    m_serviceList->InsertColumn(2, "Start Type");
-    m_serviceList->InsertColumn(3, "Description");
+    // 服务列表 wxDataViewCtrl
+    service_list_model_ = new ServiceListModel;
+    service_list_view_ = new ServiceListViewCtrl(panel, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxDV_SINGLE);
+    service_list_view_->AssociateModel(service_list_model_);
+    auto* col = service_list_view_->AppendTextColumn(wxT("Service"), wxDATAVIEW_CELL_INERT, 100);
+    col->SetWidth(wxCOL_WIDTH_AUTOSIZE);
+    col = service_list_view_->AppendTextColumn(wxT("Status"), wxDATAVIEW_CELL_INERT, 100);
+    col->SetWidth(wxCOL_WIDTH_AUTOSIZE);
+    col = service_list_view_->AppendTextColumn(wxT("StartType"), wxDATAVIEW_CELL_INERT, 100);
+    col->SetWidth(wxCOL_WIDTH_AUTOSIZE);
+    col = service_list_view_->AppendTextColumn(wxT("Description"), wxDATAVIEW_CELL_INERT, 100);
+    col->SetWidth(99999);
+    service_list_view_->Bind(wxEVT_CHAR, [this](auto& evt) {
+        const wchar_t key = evt.GetKeyCode();
+        // 只处理字母和数字
+        if ((key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z') || (key >= '0' && key <= '9')) {
+            service_list_view_->focus_next_item_by_prefix(key);
+        }
+        else {
+            evt.Skip();
+        }
+    });
 
     // 创建操作按钮
-    wxBoxSizer* buttonSizer = new wxBoxSizer(wxHORIZONTAL);
+    auto* buttonSizer = new wxBoxSizer(wxHORIZONTAL);
     buttonSizer->Add(new wxButton(panel, ID_INSTALL, "Install"));
     buttonSizer->Add(new wxButton(panel, ID_UNINSTALL, "Uninstall"));
     buttonSizer->Add(new wxButton(panel, ID_START, "Start"));
@@ -37,11 +128,11 @@ ServiceManagerFrame::ServiceManagerFrame() :
     buttonSizer->Add(new wxButton(panel, ID_REFRESH, "Refresh"));
 
     // 主布局
-    wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
-    mainSizer->Add(m_serviceList, 1, wxEXPAND | wxALL, 5);
-    mainSizer->Add(buttonSizer, 0, wxALIGN_CENTER | wxALL, 5);
+    auto* main_sizer = new wxBoxSizer(wxVERTICAL);
+    main_sizer->Add(service_list_view_, 1, wxEXPAND | wxALL, 5);
+    main_sizer->Add(buttonSizer, 0, wxALIGN_CENTER | wxALL, 5);
 
-    panel->SetSizer(mainSizer);
+    panel->SetSizer(main_sizer);
 
     // 绑定事件
     Bind(wxEVT_BUTTON, &ServiceManagerFrame::OnInstall, this, ID_INSTALL);
@@ -50,14 +141,13 @@ ServiceManagerFrame::ServiceManagerFrame() :
     Bind(wxEVT_BUTTON, &ServiceManagerFrame::OnStop, this, ID_STOP);
     Bind(wxEVT_BUTTON, &ServiceManagerFrame::OnRestart, this, ID_RESTART);
     Bind(wxEVT_BUTTON, &ServiceManagerFrame::OnRefresh, this, ID_REFRESH);
-    Bind(wxEVT_LIST_ITEM_ACTIVATED, &ServiceManagerFrame::OnServiceSelected, this, m_serviceList->GetId());
 
     // 初始加载服务列表
     RefreshServiceList();
+
     // 在构造函数中添加状态栏
     Super::CreateStatusBar();
     Super::SetStatusText("Ready");
-
 
     // 在构造函数中添加工具栏
     wxToolBar* toolbar = Super::CreateToolBar();
@@ -70,32 +160,31 @@ ServiceManagerFrame::ServiceManagerFrame() :
     toolbar->AddSeparator();
     toolbar->AddTool(ID_REFRESH, "Refresh", wxArtProvider::GetBitmap(wxART_REFRESH));
     toolbar->Realize();
+
     // 添加搜索框
-    searchCtrl = new wxTextCtrl(panel, wxID_ANY, "",
-                                         wxDefaultPosition, wxDefaultSize,
-                                         wxTE_PROCESS_ENTER);
-    searchCtrl->Bind(wxEVT_TEXT, &ServiceManagerFrame::OnSearch, this);
+    search_ctrl_ = new wxTextCtrl(panel, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER);
+    search_ctrl_->Bind(wxEVT_TEXT, &ServiceManagerFrame::OnSearch, this);
 
     // 在布局中添加搜索框
-    mainSizer->Add(searchCtrl, 0, wxEXPAND | wxALL, 5);
+    main_sizer->Add(search_ctrl_, 0, wxEXPAND | wxALL, 5);
 
     //服务分组功能
     // 添加分组树控件
-    wxTreeCtrl* groupTree = new wxTreeCtrl(panel, wxID_ANY);
+    auto* groupTree = new wxTreeCtrl(panel, wxID_ANY);
     groupTree->AddRoot("All Services");
     groupTree->AppendItem(groupTree->GetRootItem(), "System Services");
     groupTree->AppendItem(groupTree->GetRootItem(), "Application Services");
-    mainSizer->Add(groupTree, 0, wxEXPAND | wxALL, 5);
+    main_sizer->Add(groupTree, 0, wxEXPAND | wxALL, 5);
     // 绑定选择事件
     // groupTree->Bind(wxEVT_TREE_SEL_CHANGED, &ServiceManagerFrame::OnGroupSelected, this);
 
-    SetSize(m_lastSize);
+    SetSize(last_size_);
     Bind(wxEVT_SIZE, [this](wxSizeEvent& event) {
-        this->m_lastSize = event.GetSize();
+        ServiceManagerFrame::last_size_ = event.GetSize();
         OnSize(event);
     });
     Bind(wxEVT_CLOSE_WINDOW, [this](auto&) {
-        this->m_instance = nullptr;
+        ServiceManagerFrame::instance = nullptr;
         this->Destroy();
     });
 
@@ -103,57 +192,43 @@ ServiceManagerFrame::ServiceManagerFrame() :
 
 bool ServiceManagerFrame::IsShowing() noexcept
 {
-    return m_instance != nullptr && m_instance->IsShown();
+    return instance != nullptr && instance->IsShown();
 }
 
 // 在操作中更新状态
 void ServiceManagerFrame::OnRefresh(wxCommandEvent& event) {
     RefreshServiceList();
-    SetStatusText("Service list refreshed");
+    set_status_text("Service list refreshed");
 }
 
 // 搜索处理函数
 void ServiceManagerFrame::OnSearch(wxCommandEvent& event) {
-    wxString searchText = searchCtrl->GetValue().Lower();
+    wxString searchText = search_ctrl_->GetValue().Lower();
     // 过滤服务列表...
 }
 
 void ServiceManagerFrame::RefreshServiceList()
 {
-    m_serviceList->DeleteAllItems();
-
     // 获取所有服务
-    std::vector<ServiceComp> services = ServiceSystem::GetAllServices();
+    const auto services = ServiceSystem::GetAllServices();
 
+    service_list_model_->ClearColumns();
     for (const auto& service : services) {
-        long index = m_serviceList->InsertItem(m_serviceList->GetItemCount(), service.name);
-        m_serviceList->SetItem(index, 1, ServiceStatusToString(service.status));
-        m_serviceList->SetItem(index, 2, StartTypeToString(service.start_type));
-        m_serviceList->SetItem(index, 3, service.description);
-
-        // 设置状态颜色
-        if (service.status == SERVICE_RUNNING) {
-            m_serviceList->SetItemTextColour(index, *wxGREEN);
-        }
-        else if (service.status == SERVICE_STOPPED) {
-            m_serviceList->SetItemTextColour(index, *wxRED);
-        }
-        else {
-            m_serviceList->SetItemTextColour(index, *wxBLUE);
-        }
+        service_list_model_->add_service(service);
     }
-}
 
-void ServiceManagerFrame::OnServiceSelected(wxListEvent& event)
-{
-    wxString service_name = m_serviceList->GetItemText(event.GetIndex());
-    ShowServiceDetails(service_name);
+    // for (auto i = 0; i < service_list_->GetColumnCount() - 1; ++i) {
+    //     service_list_->SetColumnWidth(i, wxLIST_AUTOSIZE);
+    // }
+    // service_list_->SetColumnWidth(service_list_->GetColumnCount() - 1, wxEXPAND);
+
 }
 
 void ServiceManagerFrame::ShowServiceDetails(const wxString& service_name)
 {
     ServiceDetailDialog dlg(this, service_name);
     dlg.ShowModal();
+    dlg.Destroy();
 }
 
 void ServiceManagerFrame::OnInstall(wxCommandEvent& event) {
@@ -165,13 +240,12 @@ void ServiceManagerFrame::OnInstall(wxCommandEvent& event) {
 }
 
 void ServiceManagerFrame::OnUninstall(wxCommandEvent& event) {
-    long selected = m_serviceList->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
-    if (selected == -1) {
+    const auto service_name = service_list_view_->get_selected_service_name();
+
+    if (service_name.empty()) {
         wxMessageBox("Please select a service first", "Error", wxOK | wxICON_ERROR);
         return;
     }
-
-    wxString service_name = m_serviceList->GetItemText(selected);
 
     // 确认对话框
     wxMessageDialog dlg(this,
@@ -188,83 +262,37 @@ void ServiceManagerFrame::OnUninstall(wxCommandEvent& event) {
 }
 
 void ServiceManagerFrame::OnStart(wxCommandEvent& event) {
-    long selected = m_serviceList->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
-    if (selected == -1) return;
+    const auto service_name = service_list_view_->get_selected_service_name();
 
-    wxString service_name = m_serviceList->GetItemText(selected);
-    ServiceSystem::Start(service_name);
-    RefreshServiceList();
-}
-
-// 在列表控件中添加状态图标
-void ServiceManagerFrame::AddServiceToList(const ServiceComp& service) {
-    long index = m_serviceList->InsertItem(m_serviceList->GetItemCount(), service.name);
-
-    // 设置状态图标
-    int image_idx = -1;
-    switch (service.status) {
-        case SERVICE_RUNNING:          image_idx = 0; break; // 绿色图标
-        case SERVICE_STOPPED:          image_idx = 1; break; // 红色图标
-        case SERVICE_START_PENDING:    image_idx = 2; break; // 黄色闪烁图标
-        case SERVICE_STOP_PENDING:     image_idx = 3; break; // 黄色闪烁图标
-        case SERVICE_PAUSED:           image_idx = 4; break; // 蓝色图标
-        // case SERVICE_DISABLED:         image_idx = 5; break; // 灰色图标
-        default:                       image_idx = 6; break; // 问号图标
-    }
-
-    m_serviceList->SetItemImage(index, image_idx);
-
-    // 设置状态文本
-    m_serviceList->SetItem(index, 1, ServiceStatusToString(service.status));
-
-    // 设置启动类型
-    m_serviceList->SetItem(index, 2, StartTypeToString(service.start_type));
-
-    // 设置描述
-    m_serviceList->SetItem(index, 3, service.description);
-}
-
-// 初始化图像列表
-void ServiceManagerFrame::InitializeImageList() {
-    auto* imageList = new wxImageList(16, 16);
-
-    // 添加状态图标
-    imageList->Add(wxArtProvider::GetBitmap(wxART_TICK_MARK, wxART_OTHER, wxSize(16, 16))); // 运行中
-    imageList->Add(wxArtProvider::GetBitmap(wxART_CROSS_MARK, wxART_OTHER, wxSize(16, 16))); // 已停止
-    imageList->Add(wxArtProvider::GetBitmap(wxART_GO_FORWARD, wxART_OTHER, wxSize(16, 16))); // 启动中
-    imageList->Add(wxArtProvider::GetBitmap(wxART_GO_BACK, wxART_OTHER, wxSize(16, 16))); // 停止中
-    imageList->Add(wxArtProvider::GetBitmap(wxART_MISSING_IMAGE, wxART_OTHER, wxSize(16, 16))); // 已暂停
-    imageList->Add(wxArtProvider::GetBitmap(wxART_FOLDER, wxART_OTHER, wxSize(16, 16))); // 已禁用
-    imageList->Add(wxArtProvider::GetBitmap(wxART_QUESTION, wxART_OTHER, wxSize(16, 16))); // 未知
-
-    m_serviceList->AssignImageList(imageList, wxIMAGE_LIST_SMALL);
-}
-
-// 在状态列中使用动画图标
-void ServiceManagerFrame::OnTimer(wxTimerEvent& event) {
-    for (int i = 0; i < m_serviceList->GetItemCount(); i++) {
-        wxString service_name = m_serviceList->GetItemText(i);
-        const DWORD status = ServiceSystem::GetServiceStatus(service_name);
-        if (status == SERVICE_START_PENDING || status == SERVICE_STOP_PENDING) {
-            // 切换图标创建动画效果
-            // int currentImage = m_serviceList->GetItemImage(i);
-            auto currentImage = m_serviceList->GetImageList(i);
-            // int newImage = (currentImage == 2) ? 7 : 2; // 在两个动画帧之间切换
-            // m_serviceList->SetItemImage(i, newImage);
-        }
-    }
-}
-
-
-void ServiceManagerFrame::OnStop(wxCommandEvent& event) {
-    // 获取选中的服务
-    long selected = m_serviceList->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
-    if (selected == -1) {
+    if (service_name.empty()) {
         wxMessageBox("Please select a service first", "Error", wxOK | wxICON_ERROR);
         return;
     }
 
-    const wxString service_name = m_serviceList->GetItemText(selected);
+    ServiceSystem::Start(service_name);
+    RefreshServiceList();
+}
+
+// 初始化图像列表
+void ServiceManagerFrame::InitializeImageList() {
+    // auto* imageList = new wxImageList(16, 16);
+    // // 添加状态图标
+    // imageList->Add(wxArtProvider::GetBitmap(wxART_TICK_MARK, wxART_OTHER, wxSize(16, 16))); // 运行中
+    // imageList->Add(wxArtProvider::GetBitmap(wxART_CROSS_MARK, wxART_OTHER, wxSize(16, 16))); // 已停止
+    // imageList->Add(wxArtProvider::GetBitmap(wxART_GO_FORWARD, wxART_OTHER, wxSize(16, 16))); // 启动中
+    // imageList->Add(wxArtProvider::GetBitmap(wxART_GO_BACK, wxART_OTHER, wxSize(16, 16))); // 停止中
+    // imageList->Add(wxArtProvider::GetBitmap(wxART_MISSING_IMAGE, wxART_OTHER, wxSize(16, 16))); // 已暂停
+    // imageList->Add(wxArtProvider::GetBitmap(wxART_FOLDER, wxART_OTHER, wxSize(16, 16))); // 已禁用
+    // imageList->Add(wxArtProvider::GetBitmap(wxART_QUESTION, wxART_OTHER, wxSize(16, 16))); // 未知
+    // service_listv_->AssignImageList(imageList, wxIMAGE_LIST_SMALL);
+}
+
+void ServiceManagerFrame::OnStop(wxCommandEvent& event) {
+    const auto service_name = service_list_view_->get_selected_service_name();
+    if (service_name.empty()) {
+        wxMessageBox("Please select a service first", "Error", wxOK | wxICON_ERROR);
+        return;
+    }
 
     // 检查服务是否正在运行
     if (!ServiceSystem::IsRunning(service_name)) {
@@ -283,8 +311,8 @@ void ServiceManagerFrame::OnStop(wxCommandEvent& event) {
     }
 
     // 显示等待提示
-    SetStatusText(wxString::Format("Stopping service: %s...", service_name));
-    m_serviceList->SetItemTextColour(selected, wxColour(255, 165, 0)); // 橙色表示操作中
+    set_status_text(wxString::Format("Stopping service: %s...", service_name));
+    // service_list_->SetItemTextColour(selected, wxColour(255, 165, 0)); // 橙色表示操作中
 
     // 禁用按钮防止重复操作
     FindWindow(ID_STOP)->Disable();
@@ -292,20 +320,18 @@ void ServiceManagerFrame::OnStop(wxCommandEvent& event) {
     FindWindow(ID_START)->Disable();
 
     // 在后台线程中执行停止操作
-    ServiceOperationThread* thread = new ServiceOperationThread(
+    auto* thread = new ServiceOperationThread(
         this, service_name, ServiceOperationThread::OP_STOP);
     thread->Run();
 }
 
 void ServiceManagerFrame::OnRestart(wxCommandEvent& event) {
-    // 获取选中的服务
-    long selected = m_serviceList->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
-    if (selected == -1) {
+    const auto service_name = service_list_view_->get_selected_service_name();
+
+    if (service_name.empty()) {
         wxMessageBox("Please select a service first", "Error", wxOK | wxICON_ERROR);
         return;
     }
-
-    wxString service_name = m_serviceList->GetItemText(selected);
 
     // 检查服务是否正在运行
     bool isRunning = ServiceSystem::IsRunning(service_name);
@@ -320,8 +346,8 @@ void ServiceManagerFrame::OnRestart(wxCommandEvent& event) {
     }
 
     // 显示等待提示
-    SetStatusText(wxString::Format("Restarting service: %s...", service_name));
-    m_serviceList->SetItemTextColour(selected, wxColour(255, 165, 0)); // 橙色表示操作中
+    set_status_text(wxString::Format("Restarting service: %s...", service_name));
+    // service_list_->SetItemTextColour(selected, wxColour(255, 165, 0)); // 橙色表示操作中
 
     // 禁用按钮防止重复操作
     FindWindow(ID_STOP)->Disable();
@@ -329,7 +355,7 @@ void ServiceManagerFrame::OnRestart(wxCommandEvent& event) {
     FindWindow(ID_START)->Disable();
 
     // 在后台线程中执行重启操作
-    ServiceOperationThread* thread = new ServiceOperationThread(
+    auto* thread = new ServiceOperationThread(
         this, service_name, ServiceOperationThread::OP_RESTART);
     thread->Run();
 }
@@ -337,45 +363,43 @@ void ServiceManagerFrame::OnRestart(wxCommandEvent& event) {
 void ServiceManagerFrame::OnOperationComplete(wxThreadEvent& event) {
     // 获取操作结果
     const wxString message = event.GetString();
-    bool success = event.GetExtraLong() != 0;
+    const bool success = event.GetExtraLong() != 0;
 
-    // 获取选中的服务
-    long selected = m_serviceList->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
-    if (selected == -1) {
-        SetStatusText(message);
+    const auto service_name = service_list_view_->get_selected_service_name();
+
+    if (service_name.empty()) {
+        set_status_text(message);
         return;
     }
 
-    wxString service_name = m_serviceList->GetItemText(selected);
-
     // 更新状态文本
-    SetStatusText(message);
+    set_status_text(message, 5000);
 
     // 根据操作结果更新UI
     if (success) {
         // 刷新服务状态
         const DWORD status = ServiceSystem::GetServiceStatus(service_name);
 
-        // 更新列表项颜色
-        if (status == SERVICE_RUNNING) {
-            m_serviceList->SetItemTextColour(selected, *wxGREEN);
-        } else if (status == SERVICE_STOPPED) {
-            m_serviceList->SetItemTextColour(selected, *wxRED);
-        } else {
-            m_serviceList->SetItemTextColour(selected, *wxBLUE);
-        }
+        // // 更新列表项颜色
+        // if (status == SERVICE_RUNNING) {
+        //     service_list_->SetItemTextColour(selected, *wxGREEN);
+        // } else if (status == SERVICE_STOPPED) {
+        //     service_list_->SetItemTextColour(selected, *wxRED);
+        // } else {
+        //     service_list_->SetItemTextColour(selected, *wxBLUE);
+        // }
 
         // 更新状态文本
-        wxString statusText = ServiceStatusToString(status);
-        m_serviceList->SetItem(selected, 1, statusText);
+        const auto row = service_list_model_->find_next_row_with_prefix(service_name, 0, true, true);
+        service_list_model_->SetValueByRow(ServiceStatusToString(status), row, 0);
     } else {
-        // 操作失败，恢复原状态
-        const DWORD status = ServiceSystem::GetServiceStatus(service_name);
-        if (status == SERVICE_RUNNING) {
-            m_serviceList->SetItemTextColour(selected, *wxGREEN);
-        } else {
-            m_serviceList->SetItemTextColour(selected, *wxRED);
-        }
+        // // 操作失败，恢复原状态
+        // const DWORD status = ServiceSystem::GetServiceStatus(service_name);
+        // if (status == SERVICE_RUNNING) {
+        //     service_list_->SetItemTextColour(selected, *wxGREEN);
+        // } else {
+        //     service_list_->SetItemTextColour(selected, *wxRED);
+        // }
 
         // 显示错误消息
         wxMessageBox(message, "Error", wxOK | wxICON_ERROR);
@@ -385,4 +409,18 @@ void ServiceManagerFrame::OnOperationComplete(wxThreadEvent& event) {
     FindWindow(ID_STOP)->Enable();
     FindWindow(ID_RESTART)->Enable();
     FindWindow(ID_START)->Enable();
+}
+
+void ServiceManagerFrame::set_status_text(const wxString& text, const int time_ms)
+{
+    SetStatusText(text);
+    auto& time_mgr = utils::TimerManager::Get();
+    if (status_text_reset_timer) {
+        time_mgr.RemoveTimer(status_text_reset_timer);
+    }
+    if (time_ms >= 0) {
+        status_text_reset_timer = time_mgr.AddTimer(time_ms, [this] {
+            SetStatusText("");
+        });
+    }
 }

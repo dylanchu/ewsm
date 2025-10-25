@@ -21,10 +21,11 @@ namespace ewsm
         static bool Restart(const wxString& service_name);
         static bool Exists(const wxString& service_name);
         static bool IsRunning(const wxString& service_name);
+        static ServiceComp GetServiceInfo(const wxString& service_name);
 
         static DWORD GetServiceStatus(const wxString& service_name);
         static wxString ServiceStatusToString(DWORD status);
-        static wxString StartTypeToString(DWORD start_type);
+        static std::pair<wxString, wxString> StartTypeToString(DWORD start_type);
         static std::vector<ServiceComp> GetAllServices();
     };
 

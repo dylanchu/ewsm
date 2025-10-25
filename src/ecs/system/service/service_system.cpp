@@ -50,7 +50,7 @@ bool ewsm::ServiceSystem::IsRunning(const wxString& service_name)
 
 
 // 获取服务详细信息
-ServiceComp GetServiceInfo(const wxString& service_name) {
+ServiceComp ewsm::ServiceSystem::GetServiceInfo(const wxString& service_name) {
     const auto scm = ScmWrapper(SC_MANAGER_CONNECT);
     return scm.get_service_info(service_name);
 }
@@ -85,25 +85,21 @@ wxString ewsm::ServiceSystem::ServiceStatusToString(DWORD status)
     }
 }
 
-wxString ewsm::ServiceSystem::StartTypeToString(DWORD start_type)
+std::pair<wxString, wxString> ewsm::ServiceSystem::StartTypeToString(DWORD start_type)
 {
     switch (start_type) {
     case SERVICE_BOOT_START:
-        return "Boot - Started by the system loader";
+        return {"Boot", "Started by the system loader"};
     case SERVICE_SYSTEM_START:
-        return "System - Started during kernel initialization";
+        return {"System", "Started during kernel initialization"};
     case SERVICE_AUTO_START:
-        return "Automatic - Started automatically at system startup";
+        return {"Automatic", "Started automatically at system startup"};
     case SERVICE_DEMAND_START:
-        return "Manual - Started manually by a user or application";
+        return {"Manual", "Started manually by a user or application"};
     case SERVICE_DISABLED:
-        return "Disabled - Cannot be started";
-    // case SERVICE_DELAYED_AUTO_START: return "Delayed Auto - Started shortly after system startup";
-    // case SERVICE_TRIGGER_START:    return "Trigger Start - Started when a specific event occurs";
-    // case SERVICE_AUTO_START_PREVENTING_SHUTDOWN:
-    //     return "Auto (Prevent Shutdown) - Automatic start that prevents system shutdown";
+        return {"Disabled", "Cannot be started"};
     default:
-        return wxString::Format("Unknown (0x%X) - Unrecognized start type", start_type);
+        return {wxString::Format("Unknown (0x%X)", start_type), "Unrecognized start type"};
     }
 }
 

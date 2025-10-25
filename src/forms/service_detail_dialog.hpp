@@ -1,20 +1,21 @@
 #pragma once
 #include <wx/wx.h>
 
-#include "ecs/system/service/service_system.hpp"
 
 class ServiceDetailDialog : public wxDialog {
+    using Super = wxDialog;
 public:
-    ServiceDetailDialog(wxWindow* parent, const wxString& serviceName);
+    ServiceDetailDialog(wxWindow* parent, const wxString& service_name);
+    ~ServiceDetailDialog() override;
 
 private:
-    void CreateBasicPanel(wxWindow* parent, const wxString& serviceName);
+    void CreateBasicPanel(wxWindow* parent, const wxString& service_name);
 
-    void CreateConfigPanel(wxWindow* parent, const wxString& serviceName);
+    void CreateConfigPanel(wxWindow* parent, const wxString& service_name);
 
-    void CreateLogPanel(wxWindow* parent, const wxString& serviceName);
+    void CreateLogPanel(wxWindow* parent, const wxString& service_name);
 
-    void CreatePerfPanel(wxWindow* parent, const wxString& serviceName);
+    void CreatePerfPanel(wxWindow* parent, const wxString& service_name);
 
-    wxTimer* m_timer;
+    int update_timer = 0;
 };

@@ -1,60 +1,66 @@
 #include "service_detail_dialog.hpp"
 #include <wx/notebook.h>
-
+#include <wx/stc/stc.h>
 #include "app.hpp"
+#include "ecs/system/service/service_system.hpp"
+#include "utils/timer_manager.hpp"
 
 using namespace ewsm;
 
 
-ServiceDetailDialog::ServiceDetailDialog(wxWindow* parent, const wxString& serviceName) :
-    wxDialog(parent, wxID_ANY, "Service Details: " + serviceName)
+ServiceDetailDialog::ServiceDetailDialog(wxWindow* parent, const wxString& service_name) :
+    wxDialog(parent, wxID_ANY, "Service Details: " + service_name)
 {
-
     // 创建选项卡
-    wxNotebook* notebook = new wxNotebook(this, wxID_ANY);
+    auto* notebook = new wxNotebook(this, wxID_ANY);
 
     // 基本信息面板
-    wxPanel* basicPanel = new wxPanel(notebook);
-    CreateBasicPanel(basicPanel, serviceName);
-    notebook->AddPage(basicPanel, "Basic");
+    auto* basic_panel = new wxPanel(notebook);
+    CreateBasicPanel(basic_panel, service_name);
+    notebook->AddPage(basic_panel, "Basic");
 
     // 配置面板
-    wxPanel* configPanel = new wxPanel(notebook);
-    CreateConfigPanel(configPanel, serviceName);
-    notebook->AddPage(configPanel, "Configuration");
+    auto* config_panel = new wxPanel(notebook);
+    CreateConfigPanel(config_panel, service_name);
+    notebook->AddPage(config_panel, "Configuration");
 
     // 日志面板
-    wxPanel* logPanel = new wxPanel(notebook);
-    CreateLogPanel(logPanel, serviceName);
-    notebook->AddPage(logPanel, "Logs");
+    auto* log_panel = new wxPanel(notebook);
+    CreateLogPanel(log_panel, service_name);
+    notebook->AddPage(log_panel, "Logs");
 
     // 性能面板
-    wxPanel* perfPanel = new wxPanel(notebook);
-    CreatePerfPanel(perfPanel, serviceName);
-    notebook->AddPage(perfPanel, "Performance");
+    auto* perf_panel = new wxPanel(notebook);
+    CreatePerfPanel(perf_panel, service_name);
+    notebook->AddPage(perf_panel, "Performance");
 
     // 按钮
-    wxSizer* buttonSizer = CreateButtonSizer(wxOK | wxCANCEL);
+    wxSizer* button_sizer = CreateButtonSizer(wxOK | wxCANCEL);
 
     // 主布局
-    wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
-    mainSizer->Add(notebook, 1, wxEXPAND | wxALL, 5);
-    mainSizer->Add(buttonSizer, 0, wxALIGN_CENTER | wxALL, 5);
+    auto* main_sizer = new wxBoxSizer(wxVERTICAL);
+    main_sizer->Add(notebook, 1, wxEXPAND | wxALL, 5);
+    main_sizer->Add(button_sizer, 0, wxALIGN_CENTER | wxALL, 5);
 
-    SetSizerAndFit(mainSizer);
+    main_sizer->SetMinSize(600, 400);
+    SetSizerAndFit(main_sizer);
 }
-void ServiceDetailDialog::CreateBasicPanel(wxWindow* parent, const wxString& serviceName)
+
+ServiceDetailDialog::~ServiceDetailDialog()
 {
-    wxFlexGridSizer* grid = new wxFlexGridSizer(2, 5, 5);
+    if (update_timer) {
+        utils::TimerManager::Get().RemoveTimer(update_timer);
+        update_timer = 0;
+    }
+}
+
+void ServiceDetailDialog::CreateBasicPanel(wxWindow* parent, const wxString& service_name)
+{
+    auto* grid = new wxFlexGridSizer(2, 10, 10);
     grid->AddGrowableCol(1);
 
     // 获取服务详情
-    // ServiceComp info = ewsm::ServiceSystem::GetServiceInfo(serviceName);
-    const auto* comp = wxGetApp().reg.try_get<ServiceComp>(entt::null); // todo: fixme
-    if (!comp)
-        return;
-
-    const auto& info = *comp;
+    const auto info = ewsm::ServiceSystem::GetServiceInfo(service_name);
 
     // 添加字段
     grid->Add(new wxStaticText(parent, wxID_ANY, "Name:"));
@@ -67,96 +73,107 @@ void ServiceDetailDialog::CreateBasicPanel(wxWindow* parent, const wxString& ser
     grid->Add(new wxStaticText(parent, wxID_ANY, ServiceSystem::ServiceStatusToString(info.status)));
 
     grid->Add(new wxStaticText(parent, wxID_ANY, "Start Type:"));
-    grid->Add(new wxStaticText(parent, wxID_ANY, ServiceSystem::StartTypeToString(info.start_type)));
+    auto pr = ServiceSystem::StartTypeToString(info.start_type);
+    grid->Add(new wxStaticText(parent, wxID_ANY, wxString::Format("%s - %s", pr.first, pr.second)));
+
+    auto create_stc = [](wxWindow* p, const wxString& text) -> wxStyledTextCtrl* {
+        auto* item = new wxStyledTextCtrl(p, wxID_ANY, wxDefaultPosition, wxDefaultSize);
+        item->SetText(text);
+        item->SetWrapMode(wxSTC_WRAP_WORD);
+        item->SetMinClientSize(wxSize(0,0)); // set a small minimum size
+        item->SetReadOnly(true);
+        item->SetCaretStyle(wxSTC_CARETSTYLE_INVISIBLE); // set caret invisible
+        item->SetUseHorizontalScrollBar(false);
+        item->SetMarginWidth(1,0); // hide left margin
+        item->SetTechnology(wxSTC_TECHNOLOGY_DIRECTWRITE); // use D2D drawing
+        return item;
+    };
 
     grid->Add(new wxStaticText(parent, wxID_ANY, "Binary Path:"));
-    grid->Add(new wxTextCtrl(parent, wxID_ANY, info.binary_path, wxDefaultPosition, wxDefaultSize, wxTE_READONLY));
+    grid->Add(create_stc(parent, info.binary_path), 4, wxEXPAND)->SetInitSize(-1, -1);
 
     grid->Add(new wxStaticText(parent, wxID_ANY, "Description:"));
-    grid->Add(new wxTextCtrl(parent, wxID_ANY, info.description, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE | wxTE_READONLY));
+    grid->Add(create_stc(parent, info.description), 0, wxEXPAND)->SetInitSize(-1, -1);
 
     parent->SetSizer(grid);
 }
-void ServiceDetailDialog::CreateConfigPanel(wxWindow* parent, const wxString& serviceName)
+
+void ServiceDetailDialog::CreateConfigPanel(wxWindow* parent, const wxString& service_name)
 {
-    wxFlexGridSizer* grid = new wxFlexGridSizer(2, 5, 5);
+    auto* grid = new wxFlexGridSizer(2, 5, 5);
     grid->AddGrowableCol(1);
 
-    // // 获取服务配置
-    // ServiceConfig config = ServiceSystem::GetServiceConfig(serviceName);
-    //
-    // // 添加可编辑字段
-    // grid->Add(new wxStaticText(parent, wxID_ANY, "Startup Type:"));
-    // wxChoice* startTypeChoice = new wxChoice(parent, wxID_ANY);
-    // startTypeChoice->Append("Automatic");
-    // startTypeChoice->Append("Manual");
-    // startTypeChoice->Append("Disabled");
-    // startTypeChoice->SetSelection(config.start_type == SERVICE_AUTO_START ? 0 : config.start_type == SERVICE_DEMAND_START ? 1
-    //                                                                                                                     : 2);
-    // grid->Add(startTypeChoice);
-    //
-    // grid->Add(new wxStaticText(parent, wxID_ANY, "Account:"));
-    // wxTextCtrl* accountCtrl = new wxTextCtrl(parent, wxID_ANY, config.account);
-    // grid->Add(accountCtrl);
-    //
+    // 获取服务配置
+    const auto config = ServiceSystem::GetServiceInfo(service_name);
+
+    // 添加可编辑字段
+    grid->Add(new wxStaticText(parent, wxID_ANY, "Startup Type:"));
+    auto* start_type_choice = new wxChoice(parent, wxID_ANY);
+    start_type_choice->Append("Automatic");
+    start_type_choice->Append("Manual");
+    start_type_choice->Append("Disabled");
+    start_type_choice->SetSelection(config.start_type == SERVICE_AUTO_START ? 0 : config.start_type == SERVICE_DEMAND_START ? 1 : 2);
+    grid->Add(start_type_choice);
+
+    grid->Add(new wxStaticText(parent, wxID_ANY, "Account:"));
+    auto* account_ctrl = new wxTextCtrl(parent, wxID_ANY, config.account);
+    grid->Add(account_ctrl);
+
     // grid->Add(new wxStaticText(parent, wxID_ANY, "Arguments:"));
-    // wxTextCtrl* argsCtrl = new wxTextCtrl(parent, wxID_ANY, config.arguments);
-    // grid->Add(argsCtrl);
+    // auto* args_ctrl = new wxTextCtrl(parent, wxID_ANY, config.arguments);
+    // grid->Add(args_ctrl);
     //
     // grid->Add(new wxStaticText(parent, wxID_ANY, "Working Directory:"));
-    // wxTextCtrl* workDirCtrl = new wxTextCtrl(parent, wxID_ANY, config.working_dir);
-    // grid->Add(workDirCtrl);
+    // auto* work_dir_ctrl = new wxTextCtrl(parent, wxID_ANY, config.working_dir);
+    // grid->Add(work_dir_ctrl);
     //
     // grid->Add(new wxStaticText(parent, wxID_ANY, "Environment:"));
-    // wxTextCtrl* envCtrl = new wxTextCtrl(parent, wxID_ANY, config.environment,
-    //                                      wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE);
-    // grid->Add(envCtrl, 1, wxEXPAND);
+    // auto* env_ctrl = new wxTextCtrl(parent, wxID_ANY, config.environment, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE);
+    // grid->Add(env_ctrl, 1, wxEXPAND);
 
     parent->SetSizer(grid);
 }
-void ServiceDetailDialog::CreateLogPanel(wxWindow* parent, const wxString& serviceName)
+
+void ServiceDetailDialog::CreateLogPanel(wxWindow* parent, const wxString& service_name)
 {
-    wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
+    auto* sizer = new wxBoxSizer(wxVERTICAL);
 
     // // 日志查看器
-    // wxTextCtrl* logViewer = new wxTextCtrl(parent, wxID_ANY, "",
-    //                                        wxDefaultPosition, wxDefaultSize,
-    //                                        wxTE_MULTILINE | wxTE_READONLY | wxTE_RICH);
+    // auto* log_viewer = new wxTextCtrl(parent, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE | wxTE_READONLY | wxTE_RICH);
     // // 加载日志
-    // wxString logContent = ServiceSystem::GetServiceLog(serviceName);
-    // logViewer->SetValue(logContent);
+    // wxString log_content = ServiceSystem::GetServiceLog(service_name);
+    // log_viewer->SetValue(log_content);
     // // 自动滚动到底部
-    // logViewer->ShowPosition(logViewer->GetLastPosition());
-    // sizer->Add(logViewer, 1, wxEXPAND);
+    // log_viewer->ShowPosition(log_viewer->GetLastPosition());
+    // sizer->Add(log_viewer, 1, wxEXPAND);
 
     parent->SetSizer(sizer);
 }
-void ServiceDetailDialog::CreatePerfPanel(wxWindow* parent, const wxString& serviceName)
+
+void ServiceDetailDialog::CreatePerfPanel(wxWindow* parent, const wxString& service_name)
 {
-    wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
+    auto* sizer = new wxBoxSizer(wxVERTICAL);
 
     // CPU 使用率图表
-    wxStaticText* cpuLabel = new wxStaticText(parent, wxID_ANY, "CPU Usage:");
-    sizer->Add(cpuLabel, 0, wxEXPAND | wxALL, 5);
+    auto* cpu_label = new wxStaticText(parent, wxID_ANY, "CPU Usage:");
+    sizer->Add(cpu_label, 0, wxEXPAND | wxALL, 5);
 
-    wxGauge* cpuGauge = new wxGauge(parent, wxID_ANY, 100);
-    sizer->Add(cpuGauge, 0, wxEXPAND | wxALL, 5);
+    auto* cpu_gauge = new wxGauge(parent, wxID_ANY, 100);
+    sizer->Add(cpu_gauge, 0, wxEXPAND | wxALL, 5);
 
     // 内存使用图表
-    wxStaticText* memLabel = new wxStaticText(parent, wxID_ANY, "Memory Usage:");
-    sizer->Add(memLabel, 0, wxEXPAND | wxALL, 5);
+    auto* mem_label = new wxStaticText(parent, wxID_ANY, "Memory Usage:");
+    sizer->Add(mem_label, 0, wxEXPAND | wxALL, 5);
 
-    wxGauge* memGauge = new wxGauge(parent, wxID_ANY, 100);
-    sizer->Add(memGauge, 0, wxEXPAND | wxALL, 5);
+    auto* mem_gauge = new wxGauge(parent, wxID_ANY, 100);
+    sizer->Add(mem_gauge, 0, wxEXPAND | wxALL, 5);
 
-    // 实时更新
-    m_timer = new wxTimer(this);
-    Bind(wxEVT_TIMER, [=](wxTimerEvent&) {
-        // ServicePerf perf = ServiceSystem::GetServicePerf(serviceName);
-        // cpuGauge->SetValue(perf.cpuUsage);
-        // memGauge->SetValue(perf.memoryUsage);
-    });
-    m_timer->Start(1000); // 每秒更新一次
+    // // 实时更新
+    // update_timer = utils::TimerManager::Get().AddRepeatTimer(1000, [=, this]() {
+    //     ServicePerf perf = ServiceSystem::GetServicePerf(service_name);
+    //     cpu_gauge->SetValue(perf.cpuUsage);
+    //     mem_gauge->SetValue(perf.memoryUsage);
+    // });
 
     parent->SetSizer(sizer);
 }

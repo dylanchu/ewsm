@@ -83,8 +83,10 @@ endif ()
 
 
 # 链接库选择
-set(wxLIBS_DEBUG wxbase32ud wxmsw32ud_core wxpngd wxzlibd)
-set(wxLIBS_RELEASE wxbase32u wxmsw32u_core wxpng wxzlib)
+#set(wxLIBS_DEBUG wxbase32ud wxmsw32ud_core wxpngd wxzlibd)
+#set(wxLIBS_RELEASE wxbase32u wxmsw32u_core wxpng wxzlib)
+set(wxLIBS_DEBUG wxbase32ud wxmsw32ud_core wxpngd wxzlibd wxmsw32ud_stc wxscintillad)
+set(wxLIBS_RELEASE wxbase32u wxmsw32u_core wxpng wxzlib wxmsw32u_stc wxscintilla)
 # 系统库链接
 target_link_libraries(${PROJECT_NAME} PRIVATE
         $<$<CONFIG:Debug>:
@@ -116,3 +118,18 @@ set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
 #    "$<$<CXX_COMPILER_ID:GNU>:-fsanitize=address>"
 #    "$<$<CXX_COMPILER_ID:Clang>:-fsanitize=address>"
 #)
+
+
+# asan ----------------
+set(CMAKE_MODULE_PATH "${SRC_HOME}/3rd/sanitizers-cmake" ${CMAKE_MODULE_PATH})
+find_package(Sanitizers)
+set(SANITIZE_ADDRESS ON)
+set(SANITIZE_MEMORY ON)
+#sanitizer_add_blacklist_file("asan_blacklist.txt")
+add_sanitizers(${PROJECT_NAME})
+if(MSVC)
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /INCREMENTAL:NO")
+	set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /INCREMENTAL:NO")
+	set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} /INCREMENTAL:NO")
+endif()
+target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address)

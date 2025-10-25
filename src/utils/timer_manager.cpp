@@ -27,7 +27,7 @@ namespace utils
     {
         // std::lock_guard<std::mutex> lock(m_mutex);
         int timerId = m_nextTimerId++;
-        ManagedTimer* timer = new ManagedTimer(this, timerId, callback);
+        auto* timer = new ManagedTimer(this, timerId, callback);
         m_timers[timerId] = timer;
         timer->Start(ms, false);
         if (run_once_right_now) {
