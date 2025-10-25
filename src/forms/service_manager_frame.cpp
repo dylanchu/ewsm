@@ -8,6 +8,7 @@
 #include "ecs/system/service/service_system.hpp"
 #include "service_detail_dialog.hpp"
 #include "service_install_wizard.hpp"
+#include "utils/debug_utils.hpp"
 #include "utils/timer_manager.hpp"
 
 using namespace ewsm;
@@ -84,7 +85,10 @@ void ServiceListViewCtrl::on_service_selected(wxDataViewEvent& event)
 
 wxString ServiceListViewCtrl::get_selected_service_name() const
 {
-    return GetTextValue(GetSelectedRow(), 0);
+    if (const auto row = GetSelectedRow(); row != wxNOT_FOUND) {
+        return GetTextValue(row, 0);
+    }
+    return wxEmptyString;
 }
 
 //======================================================================================================
@@ -106,7 +110,7 @@ ServiceManagerFrame::ServiceManagerFrame() :
     col = service_list_view_->AppendTextColumn(wxT("StartType"), wxDATAVIEW_CELL_INERT, 100);
     col->SetWidth(wxCOL_WIDTH_AUTOSIZE);
     col = service_list_view_->AppendTextColumn(wxT("Description"), wxDATAVIEW_CELL_INERT, 100);
-    col->SetWidth(99999);
+    col->SetWidth(100);
     service_list_view_->Bind(wxEVT_CHAR, [this](auto& evt) {
         const wchar_t key = evt.GetKeyCode();
         // 只处理字母和数字
@@ -149,17 +153,17 @@ ServiceManagerFrame::ServiceManagerFrame() :
     Super::CreateStatusBar();
     Super::SetStatusText("Ready");
 
-    // 在构造函数中添加工具栏
-    wxToolBar* toolbar = Super::CreateToolBar();
-    toolbar->AddTool(ID_INSTALL, "Install", wxArtProvider::GetBitmap(wxART_PLUS));
-    toolbar->AddTool(ID_UNINSTALL, "Uninstall", wxArtProvider::GetBitmap(wxART_MINUS));
-    toolbar->AddSeparator();
-    toolbar->AddTool(ID_START, "Start", wxArtProvider::GetBitmap(wxART_GO_FORWARD));
-    toolbar->AddTool(ID_STOP, "Stop", wxArtProvider::GetBitmap(wxART_STOP));
-    toolbar->AddTool(ID_RESTART, "Restart", wxArtProvider::GetBitmap(wxART_REDO));
-    toolbar->AddSeparator();
-    toolbar->AddTool(ID_REFRESH, "Refresh", wxArtProvider::GetBitmap(wxART_REFRESH));
-    toolbar->Realize();
+    // // 添加工具栏
+    // wxToolBar* toolbar = Super::CreateToolBar();
+    // toolbar->AddTool(ID_INSTALL, "Install", wxArtProvider::GetBitmap(wxART_PLUS));
+    // toolbar->AddTool(ID_UNINSTALL, "Uninstall", wxArtProvider::GetBitmap(wxART_MINUS));
+    // toolbar->AddSeparator();
+    // toolbar->AddTool(ID_START, "Start", wxArtProvider::GetBitmap(wxART_GO_FORWARD));
+    // toolbar->AddTool(ID_STOP, "Stop", wxArtProvider::GetBitmap(wxART_STOP));
+    // toolbar->AddTool(ID_RESTART, "Restart", wxArtProvider::GetBitmap(wxART_REDO));
+    // toolbar->AddSeparator();
+    // toolbar->AddTool(ID_REFRESH, "Refresh", wxArtProvider::GetBitmap(wxART_REFRESH));
+    // toolbar->Realize();
 
     // 添加搜索框
     search_ctrl_ = new wxTextCtrl(panel, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER);
@@ -212,9 +216,13 @@ void ServiceManagerFrame::RefreshServiceList()
     // 获取所有服务
     const auto services = ServiceSystem::GetAllServices();
 
-    service_list_model_->ClearColumns();
+    service_list_model_->DeleteAllItems();
     for (const auto& service : services) {
-        service_list_model_->add_service(service);
+        DEBUG_MSG("Service: {}", service.name.ToStdString(), service.binary_path.ToStdString());
+        wxString nssm(L"nssm");
+        if (service.binary_path.Contains(nssm)) {
+            service_list_model_->add_service(service);
+        }
     }
 
     // for (auto i = 0; i < service_list_->GetColumnCount() - 1; ++i) {
@@ -249,7 +257,7 @@ void ServiceManagerFrame::OnUninstall(wxCommandEvent& event) {
 
     // 确认对话框
     wxMessageDialog dlg(this,
-        wxString::Format("Are you sure you want to uninstall the service '%s'?", service_name),
+        wxString::Format("Are you sure you want to uninstall service \"%s\"?", service_name),
         "Confirm Uninstall",
         wxYES_NO | wxICON_QUESTION);
     if (dlg.ShowModal() != wxID_YES) {
@@ -302,7 +310,7 @@ void ServiceManagerFrame::OnStop(wxCommandEvent& event) {
 
     // 确认对话框
     wxMessageDialog dlg(this,
-        wxString::Format("Are you sure you want to stop the service '%s'?", service_name),
+        wxString::Format("Are you sure you want to stop service \"%s\"?", service_name),
         "Confirm Stop",
         wxYES_NO | wxICON_QUESTION);
 
@@ -338,7 +346,7 @@ void ServiceManagerFrame::OnRestart(wxCommandEvent& event) {
 
     // 确认对话框
     wxMessageDialog dlg(this,
-        wxString::Format("Are you sure you want to restart the service '%s'?", service_name),
+        wxString::Format("Are you sure you want to restart service \"%s\"?", service_name),
         "Confirm Restart",
         wxYES_NO | wxICON_QUESTION);
     if (dlg.ShowModal() != wxID_YES) {

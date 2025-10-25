@@ -208,6 +208,10 @@ bool ScmWrapper::install_service(const ServiceComp& info) const
 
 bool ScmWrapper::uninstall_service(const wxString& service_name) const
 {
+    if (service_name.empty()) [[unlikely]] {
+        return false;
+    }
+
     if (const auto service = open_service(service_name, SERVICE_ALL_ACCESS); service.is_valid()) {
         // 尝试停止服务
         service.stop();
@@ -224,6 +228,9 @@ bool ScmWrapper::uninstall_service(const wxString& service_name) const
 
 bool ScmWrapper::start_service(const wxString& service_name) const
 {
+    if (service_name.empty()) [[unlikely]] {
+        return false;
+    }
     if (const auto service = open_service(service_name, SERVICE_START); service.is_valid()) {
         return service.start();
     }
@@ -232,6 +239,9 @@ bool ScmWrapper::start_service(const wxString& service_name) const
 
 bool ScmWrapper::stop_service(const wxString& service_name) const
 {
+    if (service_name.empty()) [[unlikely]] {
+        return false;
+    }
     if (const auto service = open_service(service_name, SERVICE_STOP); service.is_valid()) {
         return service.stop();
     }
@@ -298,21 +308,22 @@ std::vector<ServiceComp> ScmWrapper::get_all_services() const
     std::vector<ServiceComp> services;
     // 处理每个服务
     for (DWORD i = 0; i < service_count; i++) {
-        ServiceComp info;
-        ENUM_SERVICE_STATUS_PROCESS& item = services_buffer[i];
+        auto& [lpServiceName, lpDisplayName, ServiceStatusProcess] = services_buffer[i];
 
         // 基本服务信息
-        info.name = item.lpServiceName;
-        info.display_name = item.lpDisplayName;
-        info.status = item.ServiceStatusProcess.dwCurrentState;
-        info.pid = item.ServiceStatusProcess.dwProcessId;
+        ServiceComp info;
+        info = get_service_info(lpServiceName);
+        // info.name = lpServiceName;
+        // info.display_name = lpDisplayName;
+        info.status = ServiceStatusProcess.dwCurrentState;
+        info.pid = ServiceStatusProcess.dwProcessId;
 
-        // 获取详细配置信息
-        const auto service = open_service(item.lpServiceName, SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS);
-        if (service.is_valid()) {
-            // GetServiceConfig(service_handle, info); // 获取服务配置
-            // GetServiceDescription(service_handle, info); // 获取服务描述
-        }
+        // // 获取详细配置信息
+        // const auto service = open_service(lpServiceName, SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS);
+        // if (service.is_valid()) {
+        //     // GetServiceConfig(service_handle, info); // 获取服务配置
+        //     // GetServiceDescription(service_handle, info); // 获取服务描述
+        // }
         services.push_back(info);
     }
 
@@ -322,7 +333,7 @@ std::vector<ServiceComp> ScmWrapper::get_all_services() const
 
 ServiceComp ScmWrapper::get_service_info(const wxString& service_name) const
 {
-    const auto service = open_service(service_name.wc_str(), SERVICE_QUERY_STATUS | SERVICE_QUERY_CONFIG);
+    const auto service = open_service(service_name, SERVICE_QUERY_STATUS | SERVICE_QUERY_CONFIG);
     return service.get_service_info();
 }
 #pragma endregion ScmWrapper

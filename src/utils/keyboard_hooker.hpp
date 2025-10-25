@@ -73,7 +73,7 @@ namespace utils
         auto item = menu->AppendCheckItem(wxID_ANY, wxT("Block LWin"));
         item->Check(remapper.is_hook_installed() && remapper.get_target_key(VK_LWIN) == KeyboardRemapper::KEY_BLOCKED);
         agent->Bind(wxEVT_MENU, [=, &remapper](wxCommandEvent& event) {
-            DEBUG_MSG("--- LWIN block event: %d", event.IsChecked());
+            DEBUG_MSG("--- LWIN block event: {}", event.IsChecked());
             if (event.IsChecked()) {
                     remapper.map(VK_LWIN, KeyboardRemapper::KEY_BLOCKED);
                     if (!remapper.update_hook_state()) {

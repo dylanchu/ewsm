@@ -59,8 +59,8 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     $<$<CONFIG:Release>:NDEBUG _ITERATOR_DEBUG_LEVEL=0 _STL_DEBUG=0>
 )
 
-# 运行时配置
 if(MSVC)
+	add_compile_options(/Zc:preprocessor) # for __VA_OPT__, may not work due to MSVC bug
 	# 明确设置使用静态运行时库 (MT/MTd)
 	set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 	set_target_properties(${PROJECT_NAME} PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>") # 关键
